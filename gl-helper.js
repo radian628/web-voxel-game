@@ -7,11 +7,12 @@ function matMultiply(vec, mat) {
   ];
 }
 
-function perspective(fov, near, far) {
-  let S = 1 / (Math.tan(fov / 2));
+function perspective(fov, aspect, near, far) {
+  let SX = 1 / (Math.tan(fov / 2) * aspect);
+  let SY = 1 / (Math.tan(fov / 2));
   return [
-    S, 0, 0, 0,
-    0, S, 0, 0,
+    SX, 0, 0, 0,
+    0, SY, 0, 0,
     0, 0, -far/(far - near), -1,
     0, 0, -far * near / (far - near), 0
   ];

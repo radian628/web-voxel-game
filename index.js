@@ -8,7 +8,7 @@ class Client {
   constructor(mainCanvas) {
     this.gl = mainCanvas.getContext("webgl2");
     this.gl.viewport(0, 0, mainCanvas.width, mainCanvas.height);
-    this.projectionMatrix = perspective(Math.PI / 1.3, 0.1, 1000);
+    this.projectionMatrix = perspective(Math.PI / 1.3, 1, 0.1, 1000);
     this.viewMatrix = [
       1, 0, 0, 0,
       0, 1, 0, 0,
@@ -199,6 +199,7 @@ async function main() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     client.gl.viewport(0, 0, canvas.width, canvas.height);
+    client.projectionMatrix = perspective(Math.PI / 1.3, canvas.width / canvas.height, 0.1, 1000);;
   });
 
   setupPointerLock(canvas);
@@ -224,26 +225,26 @@ async function main() {
     mouseMovement = [0, 0];
 
     if (keys.a) {
-      viewerVelocity[0] += Math.cos(rotationY) * 0.1;
-      viewerVelocity[2] += Math.sin(rotationY) * 0.1;
+      viewerVelocity[0] += Math.cos(rotationY) * 0.01;
+      viewerVelocity[2] += Math.sin(rotationY) * 0.01;
     }
     if (keys.d) {
-      viewerVelocity[0] -= Math.cos(rotationY) * 0.1;
-      viewerVelocity[2] -= Math.sin(rotationY) * 0.1;
+      viewerVelocity[0] -= Math.cos(rotationY) * 0.01;
+      viewerVelocity[2] -= Math.sin(rotationY) * 0.01;
     }
     if (keys.w) {
-      viewerVelocity[0] += -Math.sin(rotationY) * 0.1;
-      viewerVelocity[2] += Math.cos(rotationY) * 0.1;
+      viewerVelocity[0] += -Math.sin(rotationY) * 0.01;
+      viewerVelocity[2] += Math.cos(rotationY) * 0.01;
     }
     if (keys.s) {
-      viewerVelocity[0] -= -Math.sin(rotationY) * 0.1;
-      viewerVelocity[2] -= Math.cos(rotationY) * 0.1;
+      viewerVelocity[0] -= -Math.sin(rotationY) * 0.01;
+      viewerVelocity[2] -= Math.cos(rotationY) * 0.01;
     }
     if (keys[" "]) {
-      viewerVelocity[1] -= 0.1;
+      viewerVelocity[1] -= 0.01;
     }
     if (keys.shift) {
-      viewerVelocity[1] += 0.1
+      viewerVelocity[1] += 0.01
     }
 
     viewerPosition = vectorAdd(viewerPosition, viewerVelocity);
