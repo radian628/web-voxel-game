@@ -4,14 +4,37 @@ const VOXEL_CHUNK_VOLUME = Math.pow(VOXEL_CHUNK_SIZE, 3);
 let getAsset = makeAssetLoader();
 
 function tripleFor(x1,y1,z1,x2,y2,z2, callback) {
-  for (z = z1; z < z2; z++) {
-    for (y = y1; y < y2; y++) {
-      for (x = x1; x < x2; x++) {
+  for (let z = z1; z < z2; z++) {
+    for (let y = y1; y < y2; y++) {
+      for (let x = x1; x < x2; x++) {
+        //console.log("got here")
         callback(x,y,z);   
       }
     }
   }
 }
+
+function noise2DMaker() {
+  let freqs = [];
+  let amps = [];
+  for (let i = 0; i < 10; i++) {
+    freqs.push(Math.random() * 0.3 + 0.3);
+    amps.push(Math.random() * 3);
+  }
+
+  return function (x, y) {
+    let result = 0;
+    for (let i = 0; i < 5; i++) {
+      result += Math.sin(x*freqs[i]) * amps[i]
+    }
+    for (let i = 5; i < 10; i++) {
+      result += Math.sin(y*freqs[i]) * amps[i]
+    }
+    return result;
+  } 
+}
+
+let terrain = noise2DMaker();
 
 class Client {
   constructor(mainCanvas) {
@@ -26,18 +49,25 @@ class Client {
       0, 0, 1, 0,
       0, 0, 0, 1
     ];
-    this.lightViewMatrix =  matMultiplyMat4x4([
+    this.lightRotationMatrix = matMultiplyMat4x4(
+      mat3x3To4x4(rotateX(-0.7)),
+      mat3x3To4x4(rotateY(0.2))
+    );
+    this.lightRotationMatrixInv = matMultiplyMat4x4(
+      mat3x3To4x4(rotateY(-0.2)),
+      mat3x3To4x4(rotateX(0.7))
+    );
+    this.lightViewMatrix =  matMultiplyMat4x4(
+      this.lightRotationMatrix,
+      [
       1,0,0,0,
       0,1,0,0,
       0,0,1,0,
       -16,-16,-16,1
-    ], matMultiplyMat4x4(
-      mat3x3To4x4(rotateX(-0.5)),
-      mat3x3To4x4(rotateY(0.21))
-    ));
+    ], );
       console.log(this.lightViewMatrix);
 
-    this.lightProjectionMatrix = orthographic(40, -40, 40, -40, 40, -40);
+    this.lightProjectionMatrix = orthographic(5, -5, 5, -5, 5, -5);
     window.addEventListener("resize", e => {
       mainCanvas.width = window.innerWidth;
       mainCanvas.height = window.innerHeight;
@@ -50,17 +80,23 @@ class Client {
 
     this.drawObjects = [];
 
-    tripleFor(-0,-0,-0,1,1,1, (x,y,z) => {
+    tripleFor(-2,-2,-2,2,2,2, (x,y,z) => {
+      console.log(x,y,z);
       let chunk = new VoxelChunk(undefined, [x,y,z]);
-      for (let i = 0; i < chunk.data.length; i++) {
-        chunk.data[i] = Math.random() > 0.6 ? Math.floor(Math.random() * 5) : 0;
-      }
+      let i = 0;
+      //chunk.data[0] = 1;
+       tripleFor(0,0,0,16,16,16, (x2,y2,z2) => {
+         i++;
+         let terrainHeight = terrain(x*16+x2, z*16+z2) * 0.1;
+         //if (Math.random() > 0.999) console.log(terrainHeight);
+         chunk.data[i] = (y2+y*16 < terrainHeight) ? Math.floor(Math.random() * 5+1) : 0;
+       });
       this.chunks.push(chunk);
 
       let drawChunk = new DrawVoxelChunk(this, chunk);
       this.drawObjects.push(drawChunk);
     });
-    
+    console.log(this.chunks);
   }
 
   updateDrawObjects() {
@@ -70,9 +106,16 @@ class Client {
   }
 
   draw() {
+    this.lightViewMatrix =  matMultiplyMat4x4(this.lightRotationMatrix,[
+      1,0,0,0,
+      0,1,0,0,
+      0,0,1,0,
+      ...this.position,1
+    ]);
     this.drawObjects.forEach(obj => {
       obj.drawShadow(this);
     });
+    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     this.drawObjects.forEach(obj => {
        obj.draw(this);
     });
@@ -95,7 +138,7 @@ class Client {
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbos.shadow);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.shadow1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 2048, 2048, 0, gl.RED, gl.FLOAT, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 1024, 1024, 0, gl.RED, gl.FLOAT, null);
     
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -103,7 +146,7 @@ class Client {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.shadow1, 0);
 
-    gl.clearColor(1.0, 0.0, 0.0, 1.0);
+    //gl.clearColor(1.0, 0.0, 0.0, 1.0);
     //gl.clear(gl.COLOR_BUFFER_BIT);
     //console.log(gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE)
   }
@@ -121,12 +164,6 @@ class DrawVoxelChunk {
     this.instanceBuffer = gl.createBuffer();
     this.vertexBuffer = gl.createBuffer();
     this.indexBuffer = gl.createBuffer();
-    this.modelMatrix = [
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      ...scalarMultiply(sourceChunk.position, sourceChunk.size), 1
-    ]
     gl.bindVertexArray(this.vao);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
@@ -162,13 +199,20 @@ class DrawVoxelChunk {
       this.chunkModuloBitmask = this.voxelChunkSize - 1;
       this.chunkModuloBitshift = Math.log2(this.voxelChunkSize);
       this.sourceChunk.isDrawObjectUpToDate = true;
+
+      this.modelMatrix = [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        ...scalarMultiply(this.sourceChunk.position, this.sourceChunk.size), 1
+      ];
+      console.log(this.modelMatrix[12]);
     }
   }
 
   draw(client) {
     let gl = client.gl;
     client.gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, client.canvas.width, client.canvas.height);
     //gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     gl.enable(gl.DEPTH_TEST);
     gl.bindVertexArray(this.vao);
@@ -181,16 +225,19 @@ class DrawVoxelChunk {
     setUniform(gl, client.programs.block, "chunkModuloBitmask", "1ui", this.voxelChunkSize - 1);
     setUniform(gl, client.programs.block, "chunkModuloBitshiftY", "1ui", this.chunkModuloBitshift);
     setUniform(gl, client.programs.block, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
-    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "mvp"), false, matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.viewMatrix), client.projectionMatrix));
-    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "ml"), false, matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix));
+    let mvpMatrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.viewMatrix), client.projectionMatrix);
+    let mlMatrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix);
+    setUniform(gl, client.programs.block, "lightDir", "4fv", matMultiply4([0,0,1,0],client.lightRotationMatrixInv));
+    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "mvp"), false, mvpMatrix);
+    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "ml"), false, mlMatrix);
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
   }
 
   drawShadow(client) {
     let gl = client.gl;
-    gl.cullFace(gl.FRONT);
+    //gl.cullFace(gl.FRONT);
     client.gl.bindFramebuffer(gl.FRAMEBUFFER, client.fbos.shadow);
-    gl.viewport(0, 0, 2048, 2048);
+    gl.viewport(0, 0, 1024, 1024);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     //gl.clear(gl.DEPTH_BUFFER_BIT);
     //gl.disable(gl.DEPTH_TEST);
@@ -201,7 +248,7 @@ class DrawVoxelChunk {
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
     gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.blockShadow, "ml"), false,  matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix));
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
-    gl.cullFace(gl.BACK);
+    //gl.cullFace(gl.BACK);
   }
 }
 
@@ -211,7 +258,7 @@ class VoxelChunk {
     if (!this.data) this.data = new Uint16Array(VOXEL_CHUNK_VOLUME);
     this.position = position;
     this.size = VOXEL_CHUNK_SIZE; //future support for LODs?
-    this.isDrawObjectUpToDate;
+    this.isDrawObjectUpToDate = false;
   }
 
   getIndexFromCoords(x, y, z) {
@@ -372,7 +419,7 @@ async function main() {
 
     viewerPosition = vectorAdd(viewerPosition, viewerVelocity);
     viewerVelocity = scalarMultiply(viewerVelocity, 0.9);
-
+    client.position = viewerPosition;
     rotationX = Math.max(Math.min(rotationX, Math.PI / 2), -Math.PI / 2)
     let rotmat = matMultiplyMat(rotateY(-rotationY), rotateX(-rotationX));
     client.viewMatrix = matMultiplyMat4x4([
