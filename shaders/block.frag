@@ -22,7 +22,9 @@ void main() {
   vec3 shadowCoords = shadowMappedPosition.xyz / shadowMappedPosition.w;
   shadowCoords = shadowCoords * 0.5 + 0.5;
   float shadowDepth = texture(shadowMap, shadowCoords.xy).r;
-  float shadowLight = (shadowDepth > shadowCoords.z-0.0004) ? 1.0 : 0.2;
+
+  float bias = 0.0005;
+  float shadowLight = (shadowDepth > shadowCoords.z-bias) ? 1.0 : 0.2;
   
   float lightIntensity = dot(normal, normalize(vec3(1.0, 2.0, 3.0)));
   float brightness = (lightIntensity * 0.4 + 0.6) * shadowLight;

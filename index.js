@@ -188,6 +188,7 @@ class DrawVoxelChunk {
 
   drawShadow(client) {
     let gl = client.gl;
+    gl.cullFace(gl.FRONT);
     client.gl.bindFramebuffer(gl.FRAMEBUFFER, client.fbos.shadow);
     gl.viewport(0, 0, 2048, 2048);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
@@ -200,6 +201,7 @@ class DrawVoxelChunk {
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
     gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.blockShadow, "ml"), false,  matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix));
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
+    gl.cullFace(gl.BACK);
   }
 }
 
