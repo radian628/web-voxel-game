@@ -18,6 +18,15 @@ function perspective(fov, aspect, near, far) {
   ];
 }
 
+function orthographic(r, l, t, b, f, n) {
+  return [
+    2/(r-l), 0, 0, 0,
+    0, 2/(t-b), 0, 0,
+    0, 0, -2/(f-n), 0,
+    -(r+l)/(r-l), -(t+b)/(t-b), -(f+n)/(f-n), 1
+  ]
+}
+
 function matMultiplyMat(mat1, mat2) {
   return [
     dotProduct([mat1[0], mat1[1], mat1[2]], [mat2[0], mat2[3], mat2[6]]),
@@ -54,6 +63,15 @@ function matMultiplyMat4x4(mat1, mat2) {
     dotProduct([mat1[12], mat1[13], mat1[14], mat1[15]], [mat2[2], mat2[6], mat2[10], mat2[14]]),
     dotProduct([mat1[12], mat1[13], mat1[14], mat1[15]], [mat2[3], mat2[7], mat2[11], mat2[15]]),
   ];
+}
+
+function mat3x3To4x4(mat) {
+  return [
+    mat[0], mat[1], mat[2], 0,
+    mat[3], mat[4], mat[5], 0,
+    mat[6], mat[7], mat[8], 0,
+    0, 0, 0, 1
+  ]
 }
 
 function rotateX(angle) {
