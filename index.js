@@ -17,18 +17,20 @@ function tripleFor(x1,y1,z1,x2,y2,z2, callback) {
 function noise2DMaker() {
   let freqs = [];
   let amps = [];
-  for (let i = 0; i < 10; i++) {
-    freqs.push(Math.random() * 0.3 + 0.3);
+  let phases = [];
+  for (let i = 0; i < 50; i++) {
+    freqs.push(Math.random() * 0.5 + 0.05);
     amps.push(Math.random() * 3);
+    phases.push(Math.random() * Math.PI * 2);
   }
 
   return function (x, y) {
     let result = 0;
-    for (let i = 0; i < 5; i++) {
-      result += Math.sin(x*freqs[i]) * amps[i]
+    for (let i = 0; i < 25; i++) {
+      result += Math.sin((x + phases[i])*freqs[i]) * amps[i]
     }
-    for (let i = 5; i < 10; i++) {
-      result += Math.sin(y*freqs[i]) * amps[i]
+    for (let i = 5; i < 50; i++) {
+      result += Math.sin((y + phases[i])*freqs[i]) * amps[i]
     }
     return result;
   } 
@@ -39,7 +41,7 @@ let terrain = noise2DMaker();
 class Client {
   constructor(mainCanvas) {
     this.canvas = mainCanvas;
-    this.gl = mainCanvas.getContext("webgl2");
+    this.gl = mainCanvas.getContext("webgl2", { antialias: 0 });
     this.gl.getExtension("EXT_color_buffer_float");
     this.gl.viewport(0, 0, mainCanvas.width, mainCanvas.height);
     this.projectionMatrix = perspective(Math.PI / 1.3, 1, 0.1, 1000);
@@ -50,12 +52,12 @@ class Client {
       0, 0, 0, 1
     ];
     this.lightRotationMatrix = matMultiplyMat4x4(
-      mat3x3To4x4(rotateX(-0.7)),
-      mat3x3To4x4(rotateY(0.2))
+      mat3x3To4x4(rotateX(-0.5)),
+      mat3x3To4x4(rotateY(0.5))
     );
     this.lightRotationMatrixInv = matMultiplyMat4x4(
-      mat3x3To4x4(rotateY(-0.2)),
-      mat3x3To4x4(rotateX(0.7))
+      mat3x3To4x4(rotateY(-0.5)),
+      mat3x3To4x4(rotateX(0.5))
     );
     this.lightViewMatrix =  matMultiplyMat4x4(
       this.lightRotationMatrix,
@@ -67,7 +69,8 @@ class Client {
     ], );
       console.log(this.lightViewMatrix);
 
-    this.lightProjectionMatrix = orthographic(5, -5, 5, -5, 5, -5);
+    let lightSize = 64;
+    this.lightProjectionMatrix = orthographic(lightSize, -lightSize, lightSize, -lightSize, lightSize, -lightSize);
     window.addEventListener("resize", e => {
       mainCanvas.width = window.innerWidth;
       mainCanvas.height = window.innerHeight;
@@ -80,16 +83,16 @@ class Client {
 
     this.drawObjects = [];
 
-    tripleFor(-2,-2,-2,2,2,2, (x,y,z) => {
+    tripleFor(-0,-0,-0,4,2,4, (x,y,z) => {
       console.log(x,y,z);
       let chunk = new VoxelChunk(undefined, [x,y,z]);
       let i = 0;
       //chunk.data[0] = 1;
        tripleFor(0,0,0,16,16,16, (x2,y2,z2) => {
          i++;
-         let terrainHeight = terrain(x*16+x2, z*16+z2) * 0.1;
+         let terrainHeight = terrain(x*16+x2, z*16+z2) * 0.1 + 16;
          //if (Math.random() > 0.999) console.log(terrainHeight);
-         chunk.data[i] = (y2+y*16 < terrainHeight) ? Math.floor(Math.random() * 5+1) : 0;
+         chunk.data[i] = (y2+y*16 < terrainHeight) ? 1 : 0;
        });
       this.chunks.push(chunk);
 
@@ -106,19 +109,34 @@ class Client {
   }
 
   draw() {
-    this.lightViewMatrix =  matMultiplyMat4x4(this.lightRotationMatrix,[
+    let gl = this.gl;
+    this.lightViewMatrix =  matMultiplyMat4x4([
       1,0,0,0,
       0,1,0,0,
       0,0,1,0,
       ...this.position,1
-    ]);
+    ],this.lightRotationMatrix);
+
+    this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos.shadow);
+    this.gl.viewport(0, 0, 1024, 1024);
+    this.gl.clear(this.gl.DEPTH_BUFFER_BIT | this.gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     this.drawObjects.forEach(obj => {
       obj.drawShadow(this);
     });
+    gl.cullFace(gl.BACK);
+
+    this.gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     this.drawObjects.forEach(obj => {
        obj.draw(this);
     });
+
+    //this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow);
+    //this.gl.blitFramebuffer(0, 0, 1024, 1024, 0, 0, 256, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
   }
 
   async doAsyncInitialization() {
@@ -133,7 +151,10 @@ class Client {
     }
     
     this.textures = {
-      shadow1: this.gl.createTexture()
+      shadow1: this.gl.createTexture(),
+      shadow2: this.gl.createTexture(),
+      shadow3: this.gl.createTexture(),
+      shadow4: this.gl.createTexture()
     }
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbos.shadow);
@@ -145,6 +166,11 @@ class Client {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.shadow1, 0);
+
+    var depthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT32F, 1024, 1024);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
 
     //gl.clearColor(1.0, 0.0, 0.0, 1.0);
     //gl.clear(gl.COLOR_BUFFER_BIT);
@@ -167,7 +193,7 @@ class DrawVoxelChunk {
     gl.bindVertexArray(this.vao);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array([0,1,2,1,2,3]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array([0,1,2,2,1,3]), gl.STATIC_DRAW);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0,0,1,1,0,1,1]), gl.STATIC_DRAW);
@@ -212,7 +238,6 @@ class DrawVoxelChunk {
 
   draw(client) {
     let gl = client.gl;
-    client.gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     //gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     gl.enable(gl.DEPTH_TEST);
     gl.bindVertexArray(this.vao);
@@ -235,10 +260,6 @@ class DrawVoxelChunk {
 
   drawShadow(client) {
     let gl = client.gl;
-    //gl.cullFace(gl.FRONT);
-    client.gl.bindFramebuffer(gl.FRAMEBUFFER, client.fbos.shadow);
-    gl.viewport(0, 0, 1024, 1024);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     //gl.clear(gl.DEPTH_BUFFER_BIT);
     //gl.disable(gl.DEPTH_TEST);
     gl.bindVertexArray(this.vao);
@@ -248,7 +269,6 @@ class DrawVoxelChunk {
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
     gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.blockShadow, "ml"), false,  matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix));
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
-    //gl.cullFace(gl.BACK);
   }
 }
 
@@ -433,6 +453,8 @@ async function main() {
       rotmat[6], rotmat[7], rotmat[8], 0,
       0, 0, 0, 1
     ]);
+    //client.viewMatrix = client.lightViewMatrix;
+    //client.projectionMatrix = client.lightProjectionMatrix;
 
     // for (let i = 0; i < 10; i++) {
     //   client.chunks[Math.floor(Math.random() * client.chunks.length)].setBlockFromIndex(

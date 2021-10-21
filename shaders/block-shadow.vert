@@ -7,15 +7,13 @@ layout(location=0) in vec2 vertexPositionIn;
 layout(location=1) in uint panelVertexPosition;
 layout(location=2) in uint panelMaterialAndOrientation;
 
-out vec3 vertexPositionOut;
-out vec4 shadowMappedPosition;
-out vec3 normal;
-flat out uint material;
+out vec4 vertexPositionOut;
 
 uniform uint chunkModuloBitmask;
 uniform uint chunkModuloBitshiftY;
 uniform uint chunkModuloBitshiftZ;
 uniform mat4 ml;
+
 
 const vec3[] normalTable = vec3[](
     vec3(-1.0, 0.0, 0.0),
@@ -33,21 +31,21 @@ void main() {
         float((panelVertexPosition >> chunkModuloBitshiftY) & chunkModuloBitmask),
         float((panelVertexPosition >> chunkModuloBitshiftZ) & chunkModuloBitmask)
     );
-    float perpendicularAxisOffset = ((panelOrientation & 1u) == 1u) ? 1.0 : 0.0;
+    bool isPerpendicularAxisOffset = ((panelOrientation & 1u) == 1u);
     uint panelAxisOrientation = panelOrientation >> 1u;
-    vec3 panelPos = vec3(vertexPositionIn, perpendicularAxisOffset);
+    vec3 panelPos = isPerpendicularAxisOffset ? vec3(vertexPositionIn.x, 1.0-vertexPositionIn.y, 1.0) : vec3(vertexPositionIn.x, vertexPositionIn.y, 0.0);
     switch (panelAxisOrientation) {
     case 0u:
         panelPos = panelPos.zxy;
         break;
     case 1u:
-        panelPos = panelPos.xzy;
+        panelPos = panelPos.yzx;
         break;
     case 2u:
         break;
     }
     vec3 pos = (panelBasePos + panelPos);
     vec4 clipSpacePos = ml * vec4(pos, 1.0);
-    vertexPositionOut = clipSpacePos.xyz / clipSpacePos.w;
+    vertexPositionOut = clipSpacePos;
     gl_Position = clipSpacePos;
 }

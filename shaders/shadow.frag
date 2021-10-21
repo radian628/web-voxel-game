@@ -2,7 +2,7 @@
 
 precision highp float;
 
-in vec3 vertexPositionOut;
+in vec4 vertexPositionOut;
 
 out vec4 depth;
 

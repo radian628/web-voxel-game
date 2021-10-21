@@ -34,15 +34,15 @@ void main() {
         float((panelVertexPosition >> chunkModuloBitshiftY) & chunkModuloBitmask),
         float((panelVertexPosition >> chunkModuloBitshiftZ) & chunkModuloBitmask)
     );
-    float perpendicularAxisOffset = ((panelOrientation & 1u) == 1u) ? 1.0 : 0.0;
+    bool isPerpendicularAxisOffset = ((panelOrientation & 1u) == 1u);
     uint panelAxisOrientation = panelOrientation >> 1u;
-    vec3 panelPos = vec3(vertexPositionIn, perpendicularAxisOffset);
+    vec3 panelPos = isPerpendicularAxisOffset ? vec3(vertexPositionIn.x, 1.0-vertexPositionIn.y, 1.0) : vec3(vertexPositionIn.x, vertexPositionIn.y, 0.0);
     switch (panelAxisOrientation) {
     case 0u:
         panelPos = panelPos.zxy;
         break;
     case 1u:
-        panelPos = panelPos.xzy;
+        panelPos = panelPos.yzx;
         break;
     case 2u:
         break;

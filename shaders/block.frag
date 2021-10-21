@@ -24,8 +24,11 @@ void main() {
   shadowCoords = shadowCoords * 0.5 + 0.5;
   float shadowDepth = texture(shadowMap, shadowCoords.xy).r;
 
-  float bias = 0.001;//max(0.002 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.0002);
-  float shadowLight = (shadowDepth > shadowCoords.z-bias) ? 1.0 : 0.2;
+  float bias = -0.001;//max(0.002 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.0002);
+  float shadowLight = 1.0;
+  if (clamp(shadowCoords, 0.0, 1.0) == shadowCoords) {
+    shadowLight = (shadowDepth > shadowCoords.z-bias) ? 1.0 : 0.2;
+  }
   
   float lightIntensity = dot(normal, normalize(lightDir.xyz));
   float brightness = max(lightIntensity, 0.2) * shadowLight;
