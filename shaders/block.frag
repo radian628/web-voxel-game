@@ -24,10 +24,11 @@ void main() {
   shadowCoords = shadowCoords * 0.5 + 0.5;
   float shadowDepth = texture(shadowMap, shadowCoords.xy).r;
 
-  float bias = -0.001;//max(0.002 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.0002);
+  float bias = -max(0.0008 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.00008);
   float shadowLight = 1.0;
-  if (clamp(shadowCoords, 0.0, 1.0) == shadowCoords) {
-    shadowLight = (shadowDepth > shadowCoords.z-bias) ? 1.0 : 0.2;
+  if (shadowCoords.z < 1.0 && shadowCoords.z > 0.0) {
+    vec3 absShadowCoords = abs(shadowCoords - 0.5);
+    shadowLight = (shadowDepth > shadowCoords.z-bias) ? 1.0 : 0.2 * clamp((max(max(absShadowCoords.x, absShadowCoords.y), absShadowCoords.z) - 0.25) * 20.0, 1.0, 5.0);
   }
   
   float lightIntensity = dot(normal, normalize(lightDir.xyz));
