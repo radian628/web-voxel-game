@@ -52,12 +52,12 @@ class Client {
       0, 0, 0, 1
     ];
     this.lightRotationMatrix = matMultiplyMat4x4(
-      mat3x3To4x4(rotateY(0.1)),
+      mat3x3To4x4(rotateY(0.3)),
       mat3x3To4x4(rotateX(-0.6)),
     );
     this.lightRotationMatrixInv = matMultiplyMat4x4(
       mat3x3To4x4(rotateX(0.6)),
-      mat3x3To4x4(rotateY(-0.1)),
+      mat3x3To4x4(rotateY(-0.3)),
     );
     this.lightViewMatrix =  matMultiplyMat4x4(
       this.lightRotationMatrix,
@@ -69,7 +69,7 @@ class Client {
     ], );
       console.log(this.lightViewMatrix);
 
-    let lightSize = 16;
+    let lightSize = 4;
     this.lightProjectionMatrix = orthographic(lightSize, -lightSize, lightSize, -lightSize, lightSize*8, -lightSize*8);
     window.addEventListener("resize", e => {
       mainCanvas.width = window.innerWidth;
@@ -114,14 +114,14 @@ class Client {
       1,0,0,0,
       0,1,0,0,
       0,0,1,0,
-      ...this.position.map(e => Math.floor(e)),1
+      ...this.position.map(e => (e)),1
     ],this.lightRotationMatrix);
 
     this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos.shadow);
     this.gl.viewport(0, 0, 1024, 1024);
     this.gl.clear(this.gl.DEPTH_BUFFER_BIT | this.gl.COLOR_BUFFER_BIT);
     gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.FRONT);
+    //gl.cullFace(gl.FRONT);
     gl.enable(gl.DEPTH_TEST);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     this.drawObjects.forEach(obj => {
@@ -135,8 +135,8 @@ class Client {
        obj.draw(this);
     });
 
-    this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow);
-    this.gl.blitFramebuffer(0, 0, 1024, 1024, 0, 0, 256, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    //this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow);
+    //this.gl.blitFramebuffer(0, 0, 1024, 1024, 0, 0, 256, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
   }
 
   async doAsyncInitialization() {
