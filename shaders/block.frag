@@ -11,35 +11,49 @@ vec3 hsv2rgb(vec3 c)
 
 in vec3 vertexPositionOut;
 in vec4 shadowMappedPosition;
+in vec4 shadowMappedPosition2;
 in vec3 normal;
 flat in uint material;
 
 out vec4 fragColor;
 
-uniform sampler2D shadowMap;
+uniform sampler2D shadowMap1;
+uniform sampler2D shadowMap2;
 uniform vec4 lightDir;
 //uniform mat4 ml;
 
-void main() {
-  //vec4 shadowCoords4 = ml * vec4((floor(vertexPositionOut * 8.0 +0.001) + 0.5) / 8.0, 1.0);
-  //vec3 shadowCoords = shadowCoords4.xyz / shadowCoords4.w;
-  vec3 shadowCoords = shadowMappedPosition.xyz / shadowMappedPosition.w;
-  
-
-  shadowCoords = shadowCoords * 0.5 + 0.5;
+float getShadowValue(sampler2D shadowMap, vec3 shadowCoords, float shadowFadeOut) {
   float shadowLight = 0.0;
-  vec3 absShadowCoords = abs(shadowCoords - 0.5);
-  float shadowFadeOut = clamp((max(max(absShadowCoords.x, absShadowCoords.y), absShadowCoords.z) - 0.25) * 20.0, 1.0, 5.0);
   for (float i = -1.0; i < 2.0; i++) {
     for (float j = -1.0; j < 2.0; j++) {
-      vec2 offset = vec2(i, j) / 256.0;
+      vec2 offset = vec2(i, j) / 1024.0;
       float shadowDepth = texture(shadowMap, shadowCoords.xy + offset).r;
       //float shadowLight = 1.0;
-      float bias = 2.5*max(0.0008 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.00008);
+      float bias = 1.5*max(0.0008 * (1.0 - dot(normal, normalize(lightDir.xyz))), 0.00008);
       float shadowLightSample = (shadowCoords.z-bias > shadowDepth) ? 0.2 * shadowFadeOut : 1.0;
       shadowLight += shadowLightSample / 9.0;
     }
   }
+
+  return shadowLight;
+} 
+
+void main() {
+  //vec4 shadowCoords4 = ml * vec4((floor(vertexPositionOut * 8.0 +0.001) + 0.5) / 8.0, 1.0);
+  //vec3 shadowCoords = shadowCoords4.xyz / shadowCoords4.w;
+  
+  vec3 shadowCoords = shadowMappedPosition.xyz / shadowMappedPosition.w;
+  float shadowLight;
+  if (clamp(shadowCoords, -1.0, 1.0) == shadowCoords) {
+    shadowCoords = shadowCoords * 0.5 + 0.5;
+    shadowLight = getShadowValue(shadowMap1, shadowCoords, 1.0);
+  } else {
+    vec3 shadowCoords = shadowMappedPosition2.xyz / shadowMappedPosition2.w;
+    shadowCoords = shadowCoords * 0.5 + 0.5;
+    vec3 absShadowCoords = abs(shadowCoords - 0.5);
+    shadowLight = getShadowValue(shadowMap2, shadowCoords, clamp((max(max(absShadowCoords.x, absShadowCoords.y), absShadowCoords.z) - 0.25) * 20.0, 1.0, 5.0));
+  }
+
 
   
   float lightIntensity = dot(normal, normalize(lightDir.xyz));

@@ -9,6 +9,7 @@ layout(location=2) in uint panelMaterialAndOrientation;
 
 out vec3 vertexPositionOut;
 out vec4 shadowMappedPosition;
+out vec4 shadowMappedPosition2;
 out vec3 normal;
 flat out uint material;
 
@@ -17,6 +18,7 @@ uniform uint chunkModuloBitshiftY;
 uniform uint chunkModuloBitshiftZ;
 uniform mat4 mvp;
 uniform mat4 ml;
+uniform mat4 ml2;
 
 const vec3[] normalTable = vec3[](
     vec3(-1.0, 0.0, 0.0),
@@ -50,6 +52,7 @@ void main() {
     vec3 pos = (panelBasePos + panelPos);
     vertexPositionOut = pos;
     shadowMappedPosition = (ml * vec4(pos, 1.0));
+    shadowMappedPosition2 = (ml2 * vec4(pos, 1.0));
     gl_Position = mvp * vec4(pos, 1.0);
     normal = normalTable[panelOrientation];
     material = panelMaterialAndOrientation & 8191u; //first 13 bits.

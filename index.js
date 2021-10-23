@@ -19,8 +19,9 @@ function noise2DMaker() {
   let amps = [];
   let phases = [];
   for (let i = 0; i < 50; i++) {
-    freqs.push(Math.random() * 0.5 + 0.05);
-    amps.push(Math.random() * 3);
+    let modifier = Math.exp(Math.random() * 5 - 2.5);
+    freqs.push((Math.random() + 0.5) * 0.025 * modifier);
+    amps.push((Math.random() + 0.5) / Math.pow(modifier, 0.4));
     phases.push(Math.random() * Math.PI * 2);
   }
 
@@ -29,7 +30,7 @@ function noise2DMaker() {
     for (let i = 0; i < 25; i++) {
       result += Math.sin((x + phases[i])*freqs[i]) * amps[i]
     }
-    for (let i = 5; i < 50; i++) {
+    for (let i = 25; i < 50; i++) {
       result += Math.sin((y + phases[i])*freqs[i]) * amps[i]
     }
     return result;
@@ -69,8 +70,15 @@ class Client {
     ], );
       console.log(this.lightViewMatrix);
 
-    let lightSize = 4;
-    this.lightProjectionMatrix = orthographic(lightSize, -lightSize, lightSize, -lightSize, lightSize*8, -lightSize*8);
+    let lightSize = 8;
+    this.lightProjectionMatrix1 = orthographic(lightSize, -lightSize, lightSize, -lightSize, lightSize*8, -lightSize*8);
+    this.lightProjectionMatrix2 = matMultiplyMat4x4(
+      this.lightProjectionMatrix1,[
+        1/4, 0, 0, 0,
+        0, 1/4, 0, 0,
+        0, 0, 1/4, 0,
+        0, 0, 0, 1
+      ]);//orthographic(lightSize*10, -lightSize*10, lightSize*10, -lightSize*10, lightSize*80, -lightSize*80);
     window.addEventListener("resize", e => {
       mainCanvas.width = window.innerWidth;
       mainCanvas.height = window.innerHeight;
@@ -83,16 +91,16 @@ class Client {
 
     this.drawObjects = [];
 
-    tripleFor(-0,-0,-0,4,2,4, (x,y,z) => {
+    tripleFor(-0,-0,-0,6,6,6, (x,y,z) => {
       console.log(x,y,z);
       let chunk = new VoxelChunk(undefined, [x,y,z]);
       let i = 0;
       //chunk.data[0] = 1;
        tripleFor(0,0,0,16,16,16, (x2,y2,z2) => {
          i++;
-         let terrainHeight = terrain(x*16+x2, z*16+z2) * 0.1 + 16;
+         let terrainHeight = terrain(x*16+x2, z*16+z2) * 1.5 + 48;
          //if (Math.random() > 0.999) console.log(terrainHeight);
-         chunk.data[i] = (y2+y*16 < terrainHeight) ? 1 : 0;
+         chunk.setBlockFromCoords(x2,y2,z2,(y2+y*16 < terrainHeight) ? 1 : 0);
        });
       this.chunks.push(chunk);
 
@@ -117,7 +125,7 @@ class Client {
       ...this.position.map(e => (e)),1
     ],this.lightRotationMatrix);
 
-    this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos.shadow);
+    this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos.shadow1);
     this.gl.viewport(0, 0, 1024, 1024);
     this.gl.clear(this.gl.DEPTH_BUFFER_BIT | this.gl.COLOR_BUFFER_BIT);
     gl.enable(gl.CULL_FACE);
@@ -125,7 +133,14 @@ class Client {
     gl.enable(gl.DEPTH_TEST);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
     this.drawObjects.forEach(obj => {
-      obj.drawShadow(this);
+      obj.drawShadow(this, this.lightProjectionMatrix1);
+    });
+    
+    this.gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbos.shadow2);
+    this.gl.clear(this.gl.DEPTH_BUFFER_BIT | this.gl.COLOR_BUFFER_BIT);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    this.drawObjects.forEach(obj => {
+      obj.drawShadow(this, this.lightProjectionMatrix2);
     });
     gl.cullFace(gl.BACK);
 
@@ -135,8 +150,10 @@ class Client {
        obj.draw(this);
     });
 
-    //this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow);
-    //this.gl.blitFramebuffer(0, 0, 1024, 1024, 0, 0, 256, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow1);
+    this.gl.blitFramebuffer(0, 0, 1024, 1024, 0, 0, 256, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    this.gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fbos.shadow2);
+    this.gl.blitFramebuffer(0, 0, 1024, 1024, 256, 0, 512, 256, gl.COLOR_BUFFER_BIT, gl.NEAREST);
   }
 
   async doAsyncInitialization() {
@@ -147,17 +164,16 @@ class Client {
     }
 
     this.fbos = {
-      shadow: this.gl.createFramebuffer()
+      shadow1: this.gl.createFramebuffer(),
+      shadow2: this.gl.createFramebuffer()
     }
     
     this.textures = {
       shadow1: this.gl.createTexture(),
-      shadow2: this.gl.createTexture(),
-      shadow3: this.gl.createTexture(),
-      shadow4: this.gl.createTexture()
+      shadow2: this.gl.createTexture()
     }
 
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbos.shadow);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbos.shadow1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.shadow1);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 1024, 1024, 0, gl.RED, gl.FLOAT, null);
     
@@ -167,7 +183,23 @@ class Client {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.shadow1, 0);
 
-    var depthBuffer = gl.createRenderbuffer();
+    let depthBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT32F, 1024, 1024);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+
+    
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.fbos.shadow2);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.shadow2);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 1024, 1024, 0, gl.RED, gl.FLOAT, null);
+    
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.shadow2, 0);
+
+    depthBuffer = gl.createRenderbuffer();
     gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
     gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT32F, 1024, 1024);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
@@ -245,20 +277,25 @@ class DrawVoxelChunk {
     gl.useProgram(client.programs.block);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, client.textures.shadow1);
-    gl.uniform1i(gl.getUniformLocation(client.programs.block, "shadowMap"), 0);
+    gl.uniform1i(gl.getUniformLocation(client.programs.block, "shadowMap1"), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, client.textures.shadow2);
+    gl.uniform1i(gl.getUniformLocation(client.programs.block, "shadowMap2"), 1);
     //setUniform(gl, client.programs.block, "shadowMap", "1i", 0);
     setUniform(gl, client.programs.block, "chunkModuloBitmask", "1ui", this.voxelChunkSize - 1);
     setUniform(gl, client.programs.block, "chunkModuloBitshiftY", "1ui", this.chunkModuloBitshift);
     setUniform(gl, client.programs.block, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
     let mvpMatrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.viewMatrix), client.projectionMatrix);
-    let mlMatrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix);
+    let mlMatrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix1);
+    let ml2Matrix = matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix2);
     setUniform(gl, client.programs.block, "lightDir", "4fv", matMultiply4([0,0,1,0],client.lightRotationMatrixInv));
     gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "mvp"), false, mvpMatrix);
     gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "ml"), false, mlMatrix);
+    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.block, "ml2"), false, ml2Matrix);
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
   }
 
-  drawShadow(client) {
+  drawShadow(client, lightProjMatrix) {
     let gl = client.gl;
     //gl.clear(gl.DEPTH_BUFFER_BIT);
     //gl.disable(gl.DEPTH_TEST);
@@ -267,7 +304,7 @@ class DrawVoxelChunk {
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitmask", "1ui", this.voxelChunkSize - 1);
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitshiftY", "1ui", this.chunkModuloBitshift);
     setUniform(gl, client.programs.blockShadow, "chunkModuloBitshiftZ", "1ui", this.chunkModuloBitshift * 2);
-    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.blockShadow, "ml"), false,  matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), client.lightProjectionMatrix));
+    gl.uniformMatrix4fv(gl.getUniformLocation(client.programs.blockShadow, "ml"), false,  matMultiplyMat4x4(matMultiplyMat4x4(this.modelMatrix, client.lightViewMatrix), lightProjMatrix));
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, 0, this.instanceCount);
   }
 }
@@ -387,7 +424,7 @@ async function main() {
   let rotationX = 0;
 
   
-  let viewerPosition =[0, 0, 0];
+  let viewerPosition =[-48, -16*6.5, -48];
   let viewerVelocity = [0, 0, 0];
 
   let canvas = document.getElementById("canvas");
@@ -454,7 +491,7 @@ async function main() {
       0, 0, 0, 1
     ]);
     //client.viewMatrix = client.lightViewMatrix;
-    //client.projectionMatrix = client.lightProjectionMatrix;
+    //client.projectionMatrix = client.lightProjectionMatrix1;
 
     // for (let i = 0; i < 10; i++) {
     //   client.chunks[Math.floor(Math.random() * client.chunks.length)].setBlockFromIndex(
